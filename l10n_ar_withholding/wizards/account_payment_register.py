@@ -22,20 +22,46 @@ class AccountPaymentRegister(models.TransientModel):
         move_id = self.env.context.get('active_id')
         if move_id:
             move = self.env['account.move'].browse(move_id)
-            partner = move.partner_id  # proveedor de la factura
-            amount = move.amount_total  # Valor de la factura asociada
+            partner = move.partner_id  # Proveedor de la factura
+            amount = move.amount_total  # Monto total de la factura asociada
             
-            # Si el proveedor tiene impuestos asociados, se los asignamos al pago
+            # Si el proveedor tiene impuestos asociados, calcular los montos según el tipo de impuesto
             if partner.x_studio_many2many_field_4a3_1ih0ksr0s:
                 taxes = partner.x_studio_many2many_field_4a3_1ih0ksr0s
+                withholding_data = []
+                for tax in taxes:
+                    tax_type = tax.x_studio_tipo_de_impuesto  # Tipo de impuesto (Ganancias o IBBB)
+                    tax_rate = tax.amount / 100  # Porcentaje del impuesto
+                    taxable_base = amount / 1.21  # Base imponible común para ambos tipos
+                    
+                    if tax_type == "IBBB":
+                        calculated_base_amount = taxable_base
+                        calculated_amount = calculated_base_amount * tax_rate
+                    
+                    elif tax_type == "Ganancias":
+                        min_nontaxable = tax.x_studio_monto_mnimo_no_imponible or 0  # Monto mínimo no imponible
+                        if taxable_base > min_nontaxable:
+                            calculated_base_amount = (taxable_base - min_nontaxable)
+                            calculated_amount = calculated_base_amount * tax_rate
+                        else:
+                            calculated_base_amount = 0
+                            calculated_amount = 0
+                    
+                    else:
+                        calculated_amount = 0  # Por defecto, si no es Ganancias ni IBBB
+                    
+                    # Crear la retención asociada al impuesto
+                    withholding_data.append({
+                        'tax_id': tax.id,
+                        'base_amount': calculated_base_amount,  # Usar el monto de la factura como base inicial
+                        'amount': calculated_amount,  # Monto calculado de la retención
+                    })
+                
+                # Actualizar los datos en el campo l10n_ar_withholding_ids
                 res.update({
-                    'l10n_ar_withholding_ids': [
-                        (0, 0, {
-                            'tax_id': tax.id,
-                            'base_amount': amount  # Asignar 'amount' como valor predeterminado para 'base_amount'
-                        }) for tax in taxes
-                    ]
+                    'l10n_ar_withholding_ids': [(0, 0, data) for data in withholding_data]
                 })
+        
         return res
     
     @api.depends('l10n_latam_check_id', 'amount', 'l10n_ar_net_amount')
@@ -110,3 +136,4 @@ class AccountPaymentRegister(models.TransientModel):
                 self.payment_date,
             )
         return 1.0
+
