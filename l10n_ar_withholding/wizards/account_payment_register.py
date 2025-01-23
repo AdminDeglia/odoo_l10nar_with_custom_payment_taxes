@@ -26,8 +26,8 @@ class AccountPaymentRegister(models.TransientModel):
             amount = move.amount_total  # Monto total de la factura asociada
             
             # Si el proveedor tiene impuestos asociados, calcular los montos según el tipo de impuesto
-            if partner.x_studio_many2many_field_3vf_1ii7inh62:
-                taxes = partner.x_studio_many2many_field_3vf_1ii7inh62
+            if partner.x_studio_x_studio_many2many_field_3vf_1ii7inh62:
+                taxes = partner.x_studio_x_studio_many2many_field_3vf_1ii7inh62
                 withholding_data = []
                 for tax in taxes:
                     tax_type = tax.x_studio_tipo_de_impuesto  # Tipo de impuesto (Ganancias o IBBB)
